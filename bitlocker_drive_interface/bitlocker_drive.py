@@ -8,8 +8,7 @@ This module contains the BitlockerDrive class, which is used to unlock and lock 
 import os
 import logging
 from pathlib import Path
-from typing import Optional
-from simple_async_command_manager.commands.command_bases import SubprocessCommand
+from typing import Optional, List
 
 from bitlocker_drive_interface.utilities import utilities
 from bitlocker_drive_interface.utilities.exceptions import (AlreadyLockedError, AlreadyUnlockedError)
@@ -34,15 +33,15 @@ class BitlockerDrive:
         self.powershell_executable_path = powershell_executable_path
         self.mount_point = mount_point
         
-        #: SubprocessCommand object to unlock the Bitlocker drive.
-        self.subprocess_unlock_command: Optional[SubprocessCommand] = None
+        #: Command to unlock the Bitlocker drive.
+        self.subprocess_unlock_command: Optional[List[str]] = None
         
-        #: SubprocessCommand object to lock the Bitlocker drive.
-        self.subprocess_lock_command: Optional[SubprocessCommand] = None
+        #: Command to lock the Bitlocker drive.
+        self.subprocess_lock_command: Optional[List[str]] = None
     
     
-    def prepare_unlock_subprocess(self, password: str) -> SubprocessCommand:
-        """Prepares the SubprocessCommand to unlock the Bitlocker drive.
+    def prepare_unlock_subprocess(self, password: str) -> List[str]:
+        """Prepares the command to unlock the Bitlocker drive.
         
         Args:
             password (str): Password to unlock the Bitlocker drive.
@@ -51,7 +50,7 @@ class BitlockerDrive:
             FileNotFoundError: If the password file for the Bitlocker drive is not found.
 
         Returns:
-            SubprocessCommand: SubprocessCommand object to unlock the Bitlocker drive.
+            List[str]: Command to unlock the Bitlocker drive.
         """
         if not os.path.ismount(self.mount_point):
             raise FileNotFoundError(f"Mount point at {self.mount_point} not found.")
@@ -68,7 +67,7 @@ class BitlockerDrive:
                 Unlock-BitLocker -MountPoint "{self.mount_point}" -Password $securePassword'
         ]
         
-        self.subprocess_unlock_command = SubprocessCommand(command)
+        self.subprocess_unlock_command = command
         
         return self.subprocess_unlock_command
     
@@ -81,17 +80,20 @@ class BitlockerDrive:
         """
         self.prepare_unlock_subprocess(password)
         logger.info(f"Unlocking Bitlocker drive at {self.mount_point}")
-        await self.subprocess_unlock_command.run(print_output=print_output)
+        try:
+            await utilities.run_command(self.subprocess_unlock_command, print_output=print_output)
+        except RuntimeError as e:
+            logger.error(f"Error running unlock command: {str(e)}")
     
     
-    def prepare_lock_subprocess(self) -> SubprocessCommand:
-        """Prepares the SubprocessCommand to lock the Bitlocker drive.
+    def prepare_lock_subprocess(self) -> List[str]:
+        """Prepares the command to lock the Bitlocker drive.
 
         Raises:
             FileNotFoundError: If the Bitlocker drive is not mounted.
 
         Returns:
-            SubprocessCommand: SubprocessCommand object to lock the Bitlocker drive.
+            List[str]: Command to lock the Bitlocker drive.
         """
         if not os.path.ismount(self.mount_point):
             raise FileNotFoundError(f"Mount point at {self.mount_point} not found.")
@@ -107,7 +109,7 @@ class BitlockerDrive:
             f'Lock-BitLocker -MountPoint "{self.mount_point}" -ForceDismount'
         ]
         
-        self.subprocess_lock_command = SubprocessCommand(command)
+        self.subprocess_lock_command = command
         
         return self.subprocess_lock_command
     
@@ -120,7 +122,10 @@ class BitlockerDrive:
         """
         self.prepare_lock_subprocess()
         logger.info(f"Locking Bitlocker drive at {self.mount_point}")
-        await self.subprocess_lock_command.run(print_output=print_output)
+        try:
+            await utilities.run_command(self.subprocess_lock_command, print_output=print_output)
+        except RuntimeError as e:
+            logger.error(f"Error running lock command: {str(e)}")
 
 
 # **********

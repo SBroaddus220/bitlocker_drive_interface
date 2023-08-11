@@ -8,7 +8,6 @@ Test cases for the bitlocker drive class.
 
 import asyncio
 from pathlib import Path
-from simple_async_command_manager.commands.command_bases import SubprocessCommand
 
 import unittest
 from unittest import mock
@@ -55,7 +54,7 @@ class TestBitlockerDrive(unittest.TestCase):
             command = self.bitlocker_drive.prepare_unlock_subprocess(self.password)
 
             # Assert
-            self.assertEqual(command.command, expected_command)
+            self.assertEqual(command, expected_command)
 
 
     def test_prepare_unlock_subprocess_command_setup_different_password(self):
@@ -75,7 +74,7 @@ class TestBitlockerDrive(unittest.TestCase):
             command = self.bitlocker_drive.prepare_unlock_subprocess(incorrect_password)
 
             # Assert
-            self.assertNotEqual(command.command, expected_command)
+            self.assertNotEqual(command, expected_command)
                 
                 
     def test_prepare_unlock_subprocess_no_mount_point(self):
@@ -100,27 +99,28 @@ class TestBitlockerDrive(unittest.TestCase):
     # Unlock tests
     def test_unlock_method(self):
         # Arrange
-        with mock.patch.object(SubprocessCommand, 'run', return_value=None) as mock_run, \
+        with mock.patch("bitlocker_drive_interface.utilities.utilities.run_command", return_value=None) as mock_run_command, \
             mock.patch('os.path.ismount', return_value=True), \
             mock.patch('builtins.open', mock.mock_open(read_data="ZGVjb2RlZCBwYXNzd29yZA=="), create=True):
             # Act
             asyncio.run(self.bitlocker_drive.unlock(self.password, print_output=False))  # Not interested in print_output in the test case
             
             # Assert
-            mock_run.assert_called_once()
+            mock_run_command.assert_called_once()
     
     
     def test_unlock_method_prepares_subprocess(self):
         # Arrange
-        mock_subprocess_command = mock.Mock()
-        mock_subprocess_command.run = AsyncMock()
+        mock_subprocess_command = mock.MagicMock()
+        mock_subprocess_command.__iter__.return_value = iter([])  # Mocks iterable property of command
 
         # Manually sets the attribute to the required value to simulate prepare sync subprocess call
         def side_effect(password):
             self.bitlocker_drive.subprocess_unlock_command = mock_subprocess_command
             return mock_subprocess_command
 
-        with mock.patch('pathlib.Path.exists', return_value=True), \
+        with mock.patch("bitlocker_drive_interface.utilities.utilities.run_command", return_value=None) as mock_run_command, \
+            mock.patch('pathlib.Path.exists', return_value=True), \
             mock.patch.object(BitlockerDrive, 'prepare_unlock_subprocess', side_effect=side_effect) as mock_prepare_unlock_subprocess:
 
             # Act
@@ -128,7 +128,7 @@ class TestBitlockerDrive(unittest.TestCase):
 
             # Assert
             mock_prepare_unlock_subprocess.assert_called_once()
-            mock_subprocess_command.run.assert_called_once()
+            mock_run_command.assert_called_once()
 
     
     # ****************
@@ -148,7 +148,7 @@ class TestBitlockerDrive(unittest.TestCase):
             command = self.bitlocker_drive.prepare_lock_subprocess()
 
             # Assert
-            self.assertEqual(command.command, expected_command)
+            self.assertEqual(command, expected_command)
             
     
     def test_prepare_lock_subprocess_no_mount_point(self):
@@ -170,15 +170,16 @@ class TestBitlockerDrive(unittest.TestCase):
 
     def test_lock_method_prepares_subprocess(self):
         # Arrange
-        mock_subprocess_command = mock.Mock()
-        mock_subprocess_command.run = AsyncMock()
+        mock_subprocess_command = mock.MagicMock()
+        mock_subprocess_command.__iter__.return_value = iter([])  # Mocks iterable property of command
 
         # Manually sets the attribute to the required value to simulate prepare sync subprocess call
         def side_effect():
             self.bitlocker_drive.subprocess_lock_command = mock_subprocess_command
             return mock_subprocess_command
 
-        with mock.patch('pathlib.Path.exists', return_value=True), \
+        with mock.patch("bitlocker_drive_interface.utilities.utilities.run_command", return_value=None) as mock_run_command, \
+            mock.patch('pathlib.Path.exists', return_value=True), \
             mock.patch.object(BitlockerDrive, 'prepare_lock_subprocess', side_effect=side_effect) as mock_prepare_lock_subprocess:
 
             # Act
@@ -186,14 +187,14 @@ class TestBitlockerDrive(unittest.TestCase):
 
             # Assert
             mock_prepare_lock_subprocess.assert_called_once()
-            mock_subprocess_command.run.assert_called_once()
+            mock_run_command.assert_called_once()
     
     
     # ****************
     # Lock tests
     def test_lock_method(self):
         # Arrange
-        with mock.patch.object(SubprocessCommand, 'run', return_value=None) as mock_run, \
+        with mock.patch("bitlocker_drive_interface.utilities.utilities.run_command", return_value=None) as mock_run_command, \
             mock.patch('pathlib.Path.exists', return_value=True), \
             mock.patch('os.path.ismount', return_value=True), \
             mock.patch('builtins.open', mock.mock_open(read_data="ZGVjb2RlZCBwYXNzd29yZA=="), create=True):
@@ -201,7 +202,7 @@ class TestBitlockerDrive(unittest.TestCase):
             asyncio.run(self.bitlocker_drive.lock(print_output=False))  # Not interested in print_output in the test case
             
             # Assert
-            mock_run.assert_called_once()
+            mock_run_command.assert_called_once()
     
     
 # ****************
